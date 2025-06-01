@@ -1,11 +1,16 @@
 import axios from 'axios';
-import { setupDb } from './db';
+const { setupDb } = require('./db');
 
 export async function fetchAndStoreLatestBTCData() {
     const db = await setupDb();
 
     // Ambil timestamp terakhir dari DB
-    const lastRow = await db.get(`SELECT timestamp FROM price_history ORDER BY timestamp DESC LIMIT 1`);
+    const stmt = db.prepare(`SELECT timestamp FROM price_history ORDER BY timestamp DESC LIMIT 1`);
+    let lastRow = null;
+    if (stmt.step()) {
+        lastRow = stmt.getAsObject();
+    }
+    stmt.free();
     const lastTimestamp = lastRow ? new Date(lastRow.timestamp).getTime() : 0;
 
     console.log(`🕒 Terakhir di DB: ${lastRow?.timestamp || 'Belum ada data'}`);
@@ -34,15 +39,23 @@ export async function fetchAndStoreLatestBTCData() {
                 const isoHour = date.toISOString();
 
                 // Cek apakah sudah ada data di jam ini
-                const exists = await db.get(
-                    `SELECT 1 FROM price_history WHERE timestamp = ?`,
-                    isoHour
+                const checkStmt = db.prepare(
+                    `SELECT 1 FROM price_history WHERE timestamp = ?`
                 );
+                checkStmt.bind([isoHour]);
+                const exists = checkStmt.step();
+                checkStmt.free();
+
                 if (!exists) {
-                    await db.run(
+                    db.run(
                         `INSERT INTO price_history (timestamp, price) VALUES (?, ?)`,
-                        isoHour, price
+                        [isoHour, price]
                     );
+                    // Simpan perubahan ke file
+                    if (typeof db.export === 'function') {
+                        const { saveDb } = require('./db');
+                        saveDb();
+                    }
                     added++;
                 }
             }

@@ -1,4 +1,4 @@
-import { setupDb } from './db';
+import { getAllPrices } from './db';
 import { calculateEMA, calculateRSI, calculateATR } from './indicators';
 
 const EMA_FAST = 10;
@@ -8,25 +8,19 @@ const RSI_PERIOD = 14;
 const BREAKOUT_LOOKBACK = 24; // 24 jam terakhir
 
 export async function analyze() {
-    const db = await setupDb();
-    const candles = await db.all(`
-        SELECT timestamp, price
-        FROM price_history
-        ORDER BY timestamp ASC
-    `);
+    const candles = await getAllPrices();
 
     if (
         candles.length < EMA_SLOW ||
         candles.length < ATR_PERIOD ||
         candles.length < RSI_PERIOD ||
-        candles.length < EMA_SLOW ||
         candles.length < BREAKOUT_LOOKBACK
     ) {
         return { error: 'Data belum cukup untuk analisa.' };
     }
 
-    const prices = candles.map(c => c.price);
-    const timestamps = candles.map(c => c.timestamp);
+    const prices = candles.map((c: { price: number }) => c.price);
+    const timestamps = candles.map((c: { timestamp: string }) => c.timestamp);
 
     // Hitung indikator
     const emaFast = calculateEMA(prices, EMA_FAST);
