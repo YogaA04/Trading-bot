@@ -1,0 +1,23 @@
+# Node modules
+node_modules/
+
+# Database files
+*.sqlite
+*.db
+
+# Environment variables
+.env
+
+# Logs
+logs/
+*.log
+
+# Compiled output
+dist/
+build/
+
+# VSCode settings
+.vscode/
+
+# OS files
+.DS_Store
