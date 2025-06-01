@@ -67,10 +67,57 @@ export async function getLastPrice() {
     return row;
 }
 
+// Tambahkan di bawah setupDb()
+export async function setupSignalTable() {
+    await setupDb();
+    db.run(`
+        CREATE TABLE IF NOT EXISTS sent_signals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            signal_type TEXT,
+            price REAL,
+            time TEXT
+        )
+    `);
+    saveDb();
+}
+
+export async function isSignalSent(signal_type: string, price: number, time: string): Promise<boolean> {
+    await setupDb();
+    const stmt = db.prepare(
+        `SELECT 1 FROM sent_signals WHERE signal_type = ? AND price = ? AND time = ?`
+    );
+    stmt.bind([signal_type, price, time]);
+    const exists = stmt.step();
+    stmt.free();
+    return exists;
+}
+
+export async function saveSignal(signal_type: string, price: number, time: string) {
+    await setupDb();
+    db.run(
+        `INSERT INTO sent_signals (signal_type, price, time) VALUES (?, ?, ?)`,
+        [signal_type, price, time]
+    );
+    saveDb();
+}
+
+// (Opsional) Hapus sinyal lama, misal hanya simpan 1 hari terakhir
+export async function clearOldSignals() {
+    await setupDb();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    db.run(`DELETE FROM sent_signals WHERE time < ?`, [yesterday.toISOString().slice(0, 10)]);
+    saveDb();
+}
+
 module.exports = {
     setupDb,
     insertPrice,
     getAllPrices,
     getLastPrice,
-    saveDb
+    saveDb,
+    setupSignalTable,
+    isSignalSent,
+    saveSignal,
+    clearOldSignals
 };

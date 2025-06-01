@@ -2,18 +2,33 @@ import { fetchAndStoreLatestBTCData } from './fetcher';
 import { analyze } from './analyzer';
 import { sendTelegramMessage } from './notifier';
 import cron from 'node-cron';
+import { setupSignalTable, isSignalSent, saveSignal, clearOldSignals } from './db';
 
 async function runBot() {
     try {
+        await setupSignalTable();
+        await clearOldSignals();
+
         // 1. Fetch data harga terbaru dan update DB
         await fetchAndStoreLatestBTCData();
 
         // 2. Analisa sinyal trading
         const result = await analyze();
 
-        // 3. Jika ada sinyal BUY/SELL, kirim ke Telegram
-        if (result && !result.error && result.signal !== 'HOLD') {
-            const msg = `
+        // 3. Jika ada sinyal BUY/SELL, cek dan kirim ke Telegram jika belum pernah dikirim hari ini
+        if (
+            result &&
+            !result.error &&
+            result.signal !== 'HOLD' &&
+            typeof result.signal === 'string' &&
+            typeof result.time === 'string'
+        ) {
+            // Gunakan tanggal (YYYY-MM-DD) + jam (HH) untuk validasi unik per jam
+            const signalTime = result.time.slice(0, 13); // YYYY-MM-DDTHH
+
+            const alreadySent = await isSignalSent(result.signal, result.price, signalTime);
+            if (!alreadySent) {
+                const msg = `
 Sinyal: ${result.signal}
 Waktu: ${result.time}
 Harga: $${result.price?.toFixed(2)}
@@ -28,9 +43,13 @@ RRR: ${result.rrr}
 Position Size: ${result.positionSize?.toFixed(4)}
 Risk per Trade: $${result.riskDollar?.toFixed(2)}
 Reward per Trade: $${result.rewardDollar?.toFixed(2)}
-            `.trim();
-            await sendTelegramMessage(msg);
-            console.log('📤 Sinyal dikirim ke Telegram:', msg);
+                `.trim();
+                await sendTelegramMessage(msg);
+                await saveSignal(result.signal, result.price, signalTime);
+                console.log('📤 Sinyal dikirim ke Telegram:', msg);
+            } else {
+                console.log('Sinyal sudah pernah dikirim untuk jam ini, tidak dikirim ulang.');
+            }
         } else if (result && result.signal === 'HOLD') {
             console.log('Tidak ada sinyal trading baru.');
         } else if (result && result.error) {
