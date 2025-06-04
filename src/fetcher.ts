@@ -1,6 +1,21 @@
 import axios from 'axios';
 const { setupDb, saveDb, insertCandle } = require('./db');
 
+type Candle = {
+    open_time: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+    close_time: number;
+    quote_asset_volume: number;
+    number_of_trades: number;
+    taker_buy_base_volume: number;
+    taker_buy_quote_volume: number;
+    ignore_value: number;
+};
+
 export async function fetchAndStoreLatestBTCData() {
     const db = await setupDb();
 
@@ -40,7 +55,7 @@ export async function fetchAndStoreLatestBTCData() {
     });
 
     const now = Date.now();
-    const candles = res.data
+    const candles: Candle[] = res.data
         .map((c: any) => ({
             open_time: c[0],
             open: parseFloat(c[1]),
