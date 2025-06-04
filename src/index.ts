@@ -68,17 +68,24 @@ function scheduleRunBot() {
     const now = dayjs();
     const minute = now.minute();
     const second = now.second();
-    const nextRunMinute = minute < 30 ? 30 : 60;
-    const waitMs = ((nextRunMinute - minute - 1) * 60 + (60 - second)) * 1000;
+    
+    // Hitung waktu tunggu sampai jam berikutnya di menit 00
+    const waitMinutes = (60 - minute - 1);
+    const waitSeconds = 60 - second;
+    const waitMs = (waitMinutes * 60 + waitSeconds) * 1000;
 
     setTimeout(() => {
         console.log('\n⏰ Menjalankan bot trading...');
         runBot();
+
+        // Setelah itu jalankan setiap 1 jam sekali
         setInterval(() => {
             console.log('\n⏰ Menjalankan bot trading...');
             runBot();
-        }, 30 * 60 * 1000);
+        }, 60 * 60 * 1000); // 1 jam
     }, waitMs);
+
+    console.log(`🕒 Bot dijadwalkan mulai dalam ${Math.round(waitMs / 1000)} detik (pada menit 00)...`);
 }
 
 function formatTradeMsg(trade: any): string {
