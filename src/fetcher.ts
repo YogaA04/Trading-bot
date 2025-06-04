@@ -56,22 +56,21 @@ export async function fetchAndStoreLatestBTCData() {
 
     const now = Date.now();
     const candles: Candle[] = res.data
-        .map((c: any) => ({
-            open_time: c[0],
-            open: parseFloat(c[1]),
-            high: parseFloat(c[2]),
-            low: parseFloat(c[3]),
-            close: parseFloat(c[4]),
-            volume: parseFloat(c[5]),
-            close_time: c[6],
-            quote_asset_volume: parseFloat(c[7]),
-            number_of_trades: c[8],
-            taker_buy_base_volume: parseFloat(c[9]),
-            taker_buy_quote_volume: parseFloat(c[10]),
-            ignore_value: parseFloat(c[11])
-        }))
-        // Filter hanya candle yang sudah closed
-        .filter(candle: Candle[] => candle.close_time <= now);
+  .map((c: any): Candle => ({
+    open_time: c[0],
+    open: parseFloat(c[1]),
+    high: parseFloat(c[2]),
+    low: parseFloat(c[3]),
+    close: parseFloat(c[4]),
+    volume: parseFloat(c[5]),
+    close_time: c[6],
+    quote_asset_volume: parseFloat(c[7]),
+    number_of_trades: c[8],
+    taker_buy_base_volume: parseFloat(c[9]),
+    taker_buy_quote_volume: parseFloat(c[10]),
+    ignore_value: parseFloat(c[11]),
+  }))
+  .filter((candle) => candle.close_time <= now);
 
     let added = 0;
 
