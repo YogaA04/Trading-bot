@@ -1,68 +1,77 @@
 import axios from 'axios';
-const { setupDb } = require('./db');
+const { setupDb, saveDb, insertCandle } = require('./db');
 
 export async function fetchAndStoreLatestBTCData() {
     const db = await setupDb();
 
     // Ambil timestamp terakhir dari DB
-    const stmt = db.prepare(`SELECT timestamp FROM price_history ORDER BY timestamp DESC LIMIT 1`);
+    const stmt = db.prepare(`SELECT open_time FROM price_history ORDER BY open_time DESC LIMIT 1`);
     let lastRow = null;
     if (stmt.step()) {
         lastRow = stmt.getAsObject();
     }
     stmt.free();
-    const lastTimestamp = lastRow ? new Date(lastRow.timestamp).getTime() : 0;
 
-    console.log(`🕒 Terakhir di DB: ${lastRow?.timestamp || 'Belum ada data'}`);
+    let lastTimestamp = lastRow ? new Date(lastRow.open_time).getTime() : 0;
 
-    // Hitung selisih hari antara data terakhir dan sekarang
-    const now = Date.now();
-    let diffDays = Math.ceil((now - lastTimestamp) / (1000 * 60 * 60 * 24));
-    if (diffDays < 1) diffDays = 1; // minimal ambil 1 hari
-
-    // CoinGecko API maksimal 90 hari untuk market_chart endpoint
-    if (diffDays > 90) diffDays = 90;
-
-    // Fetch data sesuai kebutuhan
-    const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${diffDays}`;
-
-    try {
-        const res = await axios.get(url);
-        const prices: [number, number][] = res.data.prices;
-
-        let added = 0;
-
-        for (const [timestamp, price] of prices) {
-            if (timestamp > lastTimestamp) {
-                const date = new Date(timestamp);
-                date.setMinutes(0, 0, 0); // bulatkan ke jam terdekat
-                const isoHour = date.toISOString();
-
-                // Cek apakah sudah ada data di jam ini
-                const checkStmt = db.prepare(
-                    `SELECT 1 FROM price_history WHERE timestamp = ?`
-                );
-                checkStmt.bind([isoHour]);
-                const exists = checkStmt.step();
-                checkStmt.free();
-
-                if (!exists) {
-                    db.run(
-                        `INSERT INTO price_history (timestamp, price) VALUES (?, ?)`,
-                        [isoHour, price]
-                    );
-                    // Simpan perubahan ke file
-                    if (typeof db.export === 'function') {
-                        const { saveDb } = require('./db');
-                        saveDb();
-                    }
-                    added++;
-                }
-            }
+    // Jika DB kosong, ambil 500 data pertama
+    let limit = 500;
+    if (!lastRow) {
+        console.log('DB kosong, ambil 500 data pertama dari Binance...');
+    } else {
+        // Hitung selisih waktu dari lastTimestamp ke sekarang dalam satuan 30 menit
+        const now = Date.now();
+        const diffMs = now - lastTimestamp;
+        let diffCandles = Math.floor(diffMs / (30 * 60 * 1000));
+        // Binance limit max 1000, minimal 1
+        limit = Math.max(1, Math.min(diffCandles, 1000));
+        if (limit === 1) {
+            console.log('Data sudah up-to-date.');
+            return;
         }
-
-        console.log(`✅ ${added} data baru disimpan`);
-    } catch (err: any) {
-        console.error('❌ Gagal fetch/simpan:', err.message);
+        console.log(`Ambil ${limit} data 30m terbaru dari Binance...`);
     }
+
+    // Ambil data dari Binance
+    const res = await axios.get('https://api.binance.com/api/v3/klines', {
+        params: {
+            symbol: 'BTCUSDT',
+            interval: '30m',
+            limit
+        }
+    });
+
+    const candles = res.data.map((c: any) => ({
+        open_time: c[0],
+        open: parseFloat(c[1]),
+        high: parseFloat(c[2]),
+        low: parseFloat(c[3]),
+        close: parseFloat(c[4]),
+        volume: parseFloat(c[5]),
+        close_time: c[6],
+        quote_asset_volume: parseFloat(c[7]),
+        number_of_trades: c[8],
+        taker_buy_base_volume: parseFloat(c[9]),
+        taker_buy_quote_volume: parseFloat(c[10]),
+        ignore_value: parseFloat(c[11])
+    }));
+
+    let added = 0;
+
+    for (const candle of candles) {
+        // Cek apakah sudah ada data berdasarkan open_time
+        const checkStmt = db.prepare(
+            `SELECT 1 FROM price_history WHERE open_time = ?`
+        );
+        checkStmt.bind([candle.open_time]);
+        const exists = checkStmt.step();
+        checkStmt.free();
+
+        if (!exists) {
+            await insertCandle(candle);
+            added++;
+        }
+    }
+
+    console.log(`✅ ${added} data 30m baru dari Binance disimpan`);
 }

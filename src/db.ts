@@ -15,8 +15,18 @@ export async function setupDb() {
             db.run(`
                 CREATE TABLE IF NOT EXISTS price_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT NOT NULL,
-                    price REAL NOT NULL
+                    open_time INTEGER,
+                    open REAL,
+                    high REAL,
+                    low REAL,
+                    close REAL,
+                    volume REAL,
+                    close_time INTEGER,
+                    quote_asset_volume REAL,
+                    number_of_trades INTEGER,
+                    taker_buy_base_volume REAL,
+                    taker_buy_quote_volume REAL,
+                    ignore_value REAL
                 );
             `);
             saveDb();
@@ -33,41 +43,7 @@ export function saveDb() {
     }
 }
 
-// Menyimpan data harga baru
-export async function insertPrice(timestamp: string, price: number) {
-    await setupDb();
-    db.run(
-        `INSERT INTO price_history (timestamp, price) VALUES (?, ?)`,
-        [timestamp, price]
-    );
-    saveDb();
-}
-
-// Mengambil semua data harga
-export async function getAllPrices() {
-    await setupDb();
-    const stmt = db.prepare(`SELECT timestamp, price FROM price_history ORDER BY timestamp ASC`);
-    const rows = [];
-    while (stmt.step()) {
-        rows.push(stmt.getAsObject());
-    }
-    stmt.free();
-    return rows;
-}
-
-// Mengambil harga terakhir
-export async function getLastPrice() {
-    await setupDb();
-    const stmt = db.prepare(`SELECT timestamp, price FROM price_history ORDER BY timestamp DESC LIMIT 1`);
-    let row = null;
-    if (stmt.step()) {
-        row = stmt.getAsObject();
-    }
-    stmt.free();
-    return row;
-}
-
-// Tambahkan di bawah setupDb()
+// Setup tabel sinyal
 export async function setupSignalTable() {
     await setupDb();
     db.run(`
@@ -81,6 +57,7 @@ export async function setupSignalTable() {
     saveDb();
 }
 
+// Cek apakah sinyal sudah pernah dikirim
 export async function isSignalSent(signal_type: string, price: number, time: string): Promise<boolean> {
     await setupDb();
     const stmt = db.prepare(
@@ -92,6 +69,7 @@ export async function isSignalSent(signal_type: string, price: number, time: str
     return exists;
 }
 
+// Simpan sinyal
 export async function saveSignal(signal_type: string, price: number, time: string) {
     await setupDb();
     db.run(
@@ -101,7 +79,7 @@ export async function saveSignal(signal_type: string, price: number, time: strin
     saveDb();
 }
 
-// (Opsional) Hapus sinyal lama, misal hanya simpan 1 hari terakhir
+// Hapus sinyal lama (misal hanya simpan 1 hari terakhir)
 export async function clearOldSignals() {
     await setupDb();
     const yesterday = new Date();
@@ -110,14 +88,138 @@ export async function clearOldSignals() {
     saveDb();
 }
 
+// Setup tabel trade
+export async function setupTradeTable() {
+    await setupDb();
+    db.run(`
+        CREATE TABLE IF NOT EXISTS trades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT,           -- OPEN/CLOSE
+            type TEXT,             -- BUY/SELL
+            entryPrice REAL,
+            size REAL,
+            sl REAL,
+            tp REAL,
+            time TEXT,
+            closePrice REAL,
+            pnl REAL,
+            result TEXT,           -- WIN/LOSS
+            balance REAL
+        )
+    `);
+    saveDb();
+}
+
+// Simpan trade (OPEN/CLOSE)
+export async function saveTrade(trade: {
+    action: string,
+    type: string,
+    entryPrice: number,
+    size: number,
+    sl: number,
+    tp: number,
+    time: string,
+    closePrice?: number,
+    pnl?: number,
+    result?: string,
+    balance?: number
+}) {
+    await setupDb();
+    db.run(
+        `INSERT INTO trades 
+        (action, type, entryPrice, size, sl, tp, time, closePrice, pnl, result, balance)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            trade.action,
+            trade.type,
+            trade.entryPrice,
+            trade.size,
+            trade.sl,
+            trade.tp,
+            trade.time,
+            trade.closePrice ?? null,
+            trade.pnl ?? null,
+            trade.result ?? null,
+            trade.balance ?? null
+        ]
+    );
+    saveDb();
+}
+
+// Ambil seluruh trade
+export async function getAllTrades() {
+    await setupDb();
+    const stmt = db.prepare(`SELECT * FROM trades ORDER BY id ASC`);
+    const rows = [];
+    while (stmt.step()) {
+        rows.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return rows;
+}
+
+// Simpan candle lengkap
+export async function insertCandle(candle: {
+    open_time: number,
+    open: number,
+    high: number,
+    low: number,
+    close: number,
+    volume: number,
+    close_time: number,
+    quote_asset_volume: number,
+    number_of_trades: number,
+    taker_buy_base_volume: number,
+    taker_buy_quote_volume: number,
+    ignore_value: number
+}) {
+    await setupDb();
+    db.run(
+        `INSERT INTO price_history (
+            open_time, open, high, low, close, volume, close_time,
+            quote_asset_volume, number_of_trades, taker_buy_base_volume,
+            taker_buy_quote_volume, ignore_value
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            candle.open_time,
+            candle.open,
+            candle.high,
+            candle.low,
+            candle.close,
+            candle.volume,
+            candle.close_time,
+            candle.quote_asset_volume,
+            candle.number_of_trades,
+            candle.taker_buy_base_volume,
+            candle.taker_buy_quote_volume,
+            candle.ignore_value
+        ]
+    );
+    saveDb();
+}
+
+// Ambil semua data candle lengkap
+export async function getAllCandles() {
+    await setupDb();
+    const stmt = db.prepare(`SELECT * FROM price_history ORDER BY open_time ASC`);
+    const rows = [];
+    while (stmt.step()) {
+        rows.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return rows;
+}
+
 module.exports = {
     setupDb,
-    insertPrice,
-    getAllPrices,
-    getLastPrice,
     saveDb,
     setupSignalTable,
     isSignalSent,
     saveSignal,
-    clearOldSignals
+    clearOldSignals,
+    setupTradeTable,
+    saveTrade,
+    getAllTrades,
+    insertCandle,
+    getAllCandles
 };
