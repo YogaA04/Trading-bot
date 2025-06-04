@@ -1,5 +1,5 @@
 import axios from 'axios';
-const { setupDb, saveDb, insertCandle } = require('./db');
+const { setupDb, insertCandle } = require('./db');
 
 export async function fetchAndStoreLatestBTCData() {
     const db = await setupDb();
@@ -14,25 +14,23 @@ export async function fetchAndStoreLatestBTCData() {
 
     let lastTimestamp = lastRow ? new Date(lastRow.open_time).getTime() : 0;
 
-    // Jika DB kosong, ambil 500 data pertama
+    // Hitung limit data yang perlu diambil
     let limit = 500;
     if (!lastRow) {
-        console.log('DB kosong, ambil 500 data pertama dari Binance...');
+        console.log('📦 DB kosong, ambil 500 data pertama dari Binance...');
     } else {
-        // Hitung selisih waktu dari lastTimestamp ke sekarang dalam satuan 30 menit
         const now = Date.now();
         const diffMs = now - lastTimestamp;
-        let diffCandles = Math.floor(diffMs / (30 * 60 * 1000));
-        // Binance limit max 1000, minimal 1
+        let diffCandles = Math.floor(diffMs / (30 * 60 * 1000)); // 30m
         limit = Math.max(1, Math.min(diffCandles, 1000));
         if (limit === 1) {
-            console.log('Data sudah up-to-date.');
+            console.log('⚠️ Data sudah up-to-date.');
             return;
         }
-        console.log(`Ambil ${limit} data 30m terbaru dari Binance...`);
+        console.log(`📊 Ambil ${limit} data 30m terbaru dari Binance...`);
     }
 
-    // Ambil data dari Binance
+    // Fetch candle data
     const res = await axios.get('https://api.binance.com/api/v3/klines', {
         params: {
             symbol: 'BTCUSDT',
@@ -40,6 +38,8 @@ export async function fetchAndStoreLatestBTCData() {
             limit
         }
     });
+
+    const now = Date.now();
 
     const candles = res.data.map((c: any) => ({
         open_time: c[0],
@@ -54,15 +54,12 @@ export async function fetchAndStoreLatestBTCData() {
         taker_buy_base_volume: parseFloat(c[9]),
         taker_buy_quote_volume: parseFloat(c[10]),
         ignore_value: parseFloat(c[11])
-    }));
+    })).filter(candle => candle.close_time < now); // ✅ hanya ambil candle yang sudah close
 
     let added = 0;
 
     for (const candle of candles) {
-        // Cek apakah sudah ada data berdasarkan open_time
-        const checkStmt = db.prepare(
-            `SELECT 1 FROM price_history WHERE open_time = ?`
-        );
+        const checkStmt = db.prepare(`SELECT 1 FROM price_history WHERE open_time = ?`);
         checkStmt.bind([candle.open_time]);
         const exists = checkStmt.step();
         checkStmt.free();
@@ -73,5 +70,5 @@ export async function fetchAndStoreLatestBTCData() {
         }
     }
 
-    console.log(`✅ ${added} data 30m baru dari Binance disimpan`);
+    console.log(`✅ ${added} data 30m (sudah selesai) disimpan ke DB`);
 }
