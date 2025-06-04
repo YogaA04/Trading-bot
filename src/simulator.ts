@@ -33,7 +33,7 @@ function calcPNL(entryPrice: number, exitPrice: number, size: number, type: 'BUY
         : (entryPrice - exitPrice) * size;
 }
 
-export async function runSimulation() {
+export async function runSimulation(onTrade?: (trade: any) => Promise<void>) {
     await setupTradeTable();
     const candles = await getAllCandles();
     for (let i = 201; i < candles.length; i++) {
@@ -66,6 +66,7 @@ export async function runSimulation() {
                 volume: lastCandle.volume
             };
             await logTrade({ action: 'OPEN', ...openPosition, balance, time });
+            if (onTrade) await onTrade({ action: 'OPEN', ...openPosition, balance, time });
         }
 
         while (openPosition && i < candles.length - 1) {
@@ -128,6 +129,15 @@ export async function runSimulation() {
                 const pnl = calcPNL(openPosition.entryPrice, closePrice, openPosition.size, openPosition.type);
                 balance += pnl;
                 await logTrade({
+                    action: 'CLOSE',
+                    ...openPosition,
+                    closePrice,
+                    pnl,
+                    result,
+                    balance,
+                    closeTime: new Date(nextCandle.open_time).toISOString()
+                });
+                if (onTrade) await onTrade({
                     action: 'CLOSE',
                     ...openPosition,
                     closePrice,

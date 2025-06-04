@@ -2,6 +2,8 @@ import { fetchAndStoreLatestBTCData } from './fetcher';
 import { analyze } from './analyzer';
 import { setupSignalTable, isSignalSent, saveSignal, clearOldSignals, getAllCandles } from './db';
 import dayjs from 'dayjs';
+import { runSimulation } from './simulator';
+import { sendTelegramMessage } from './notifier';
 
 async function runBot() {
     try {
@@ -79,8 +81,51 @@ function scheduleRunBot() {
     }, waitMs);
 }
 
+function formatTradeMsg(trade: any): string {
+    if (trade.action === 'OPEN') {
+        return `
+=== OPEN POSISI ===
+Tipe     : ${trade.type}
+Entry    : $${trade.entryPrice.toFixed(2)}
+Size     : ${trade.size.toFixed(4)}
+SL       : $${trade.sl.toFixed(2)}
+TP       : $${trade.tp.toFixed(2)}
+Waktu    : ${trade.time}
+Balance  : $${trade.balance.toFixed(2)}
+===================
+        `.trim();
+    } else if (trade.action === 'CLOSE') {
+        return `
+=== CLOSE POSISI ===
+Tipe     : ${trade.type}
+Entry    : $${trade.entryPrice.toFixed(2)}
+Exit     : $${trade.closePrice.toFixed(2)}
+Size     : ${trade.size.toFixed(4)}
+PnL      : $${trade.pnl.toFixed(2)}
+Result   : ${trade.result}
+Balance  : $${trade.balance.toFixed(2)}
+Waktu    : ${trade.closeTime}
+====================
+        `.trim();
+    }
+    return '';
+}
+
+async function main() {
+    await runSimulation(async (trade) => {
+        const msg = formatTradeMsg(trade);
+        try {
+            await sendTelegramMessage(msg);
+            console.log('Pesan Telegram terkirim:', msg);
+        } catch (err) {
+            console.error('Gagal kirim Telegram:', err);
+        }
+    });
+}
+
 runBot();
 scheduleRunBot();
+main();
 
 setInterval(() => {
     process.stdout.write('\r🕒 ' + dayjs().format('HH:mm:ss'));
