@@ -71,7 +71,7 @@ export async function fetchAndStoreLatestBTCData() {
             ignore_value: parseFloat(c[11])
         }))
         // Filter hanya candle yang sudah closed
-        .filter(candle => candle.close_time <= now);
+        .filter(candle: Candle[] => candle.close_time <= now);
 
     let added = 0;
 
