@@ -173,6 +173,5 @@ async function main() {
 scheduleRunBot();
 main();
 
-// setInterval(() => {
-//     process.stdout.write('\r🕒 ' + dayjs().format('HH:mm:ss'));
-// }, 1000);
+//setInterval(() => {
+//    process.stdout.write('\r🕒 ' + dayjs().format('HH:mm:ss'));}, 1000);
