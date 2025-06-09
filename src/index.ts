@@ -111,16 +111,22 @@ async function showLastCandle() {
 }
 
 function scheduleRunBot() {
-    const now = dayjs();
-    const waitMs = ((59 - now.minute()) * 60 + (60 - now.second())) * 1000;
+const now = dayjs();
+const minute = now.minute();
+const second = now.second();
+const nextRunMinute = minute < 30 ? 30 : 60;
+const waitMs = ((nextRunMinute - minute - 1) * 60 + (60 - second)) * 1000;
 
-    setTimeout(() => {
-        runBot();
-        setInterval(runBot, 60 * 60 * 1000); // 1 jam
-    }, waitMs);
+setTimeout(() => {  
+    console.log('\n⏰ Menjalankan bot trading...');  
+    runBot();  
+    setInterval(() => {  
+        console.log('\n⏰ Menjalankan bot trading...');  
+        runBot();  
+    }, 30 * 60 * 1000);  
+}, waitMs);
 
-    console.log(`🕒 Bot dijadwalkan mulai dalam ${Math.round(waitMs / 1000)} detik (pada menit 00)...`);
-}
+} 
 
 function formatTradeMsg(trade: Trade): string {
     if (trade.action === 'OPEN') {
