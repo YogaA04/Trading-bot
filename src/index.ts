@@ -51,13 +51,29 @@ async function runBot() {
                 console.log(msg);
                 await saveSignal(result.signal, result.close, signalTime);
                 console.log('📤 Sinyal dicatat ke database:', signalTime);
+
+                // // Kirim pesan ke Telegram jika ada sinyal baru
+                // try {
+                //     await sendTelegramMessage(msg);
+                //     console.log('📤 Sinyal trading dikirim ke Telegram');
+                // } catch (err) {
+                //     console.error('❌ Gagal kirim sinyal ke Telegram:', err);
+                // }
             } else {
                 console.log('Sinyal sudah pernah dicatat untuk jam ini, tidak dicatat ulang.');
             }
         } else if (result?.signal === 'HOLD') {
             console.log('Tidak ada sinyal trading baru.');
         } else if (result?.error) {
-            console.log(result.error);
+            console.log('❌ Error analisa:', result.error);
+        } else {
+            // Log detail validasi gagal
+            console.error('❌ Validasi sinyal gagal:', {
+                signal: result?.signal,
+                error: result?.error,
+                time: result?.time,
+                result
+            });
         }
 
         await showLastCandle();
@@ -151,6 +167,6 @@ async function main() {
 scheduleRunBot();
 main();
 
-setInterval(() => {
-    process.stdout.write('\r🕒 ' + dayjs().format('HH:mm:ss'));
-}, 1000);
+// setInterval(() => {
+//     process.stdout.write('\r🕒 ' + dayjs().format('HH:mm:ss'));
+// }, 1000);
