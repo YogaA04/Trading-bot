@@ -52,13 +52,13 @@ async function runBot() {
                 await saveSignal(result.signal, result.close, signalTime);
                 console.log('📤 Sinyal dicatat ke database:', signalTime);
 
-                // // Kirim pesan ke Telegram jika ada sinyal baru
-                // try {
-                //     await sendTelegramMessage(msg);
-                //     console.log('📤 Sinyal trading dikirim ke Telegram');
-                // } catch (err) {
-                //     console.error('❌ Gagal kirim sinyal ke Telegram:', err);
-                // }
+                // Kirim pesan ke Telegram jika ada sinyal baru
+                try {
+                    await sendTelegramMessage(msg);
+                    console.log('📤 Sinyal trading dikirim ke Telegram');
+                } catch (err) {
+                    console.error('❌ Gagal kirim sinyal ke Telegram:', err);
+                }
             } else {
                 console.log('Sinyal sudah pernah dicatat untuk jam ini, tidak dicatat ulang.');
             }
@@ -85,16 +85,16 @@ async function runBot() {
 function formatSignalMsg(result: SignalResult) {
     return [
         '=== SINYAL TRADING BARU ===',
-        `Sinyal   : ${result.signal}`,
-        `Waktu    : ${result.time}`,
-        `Open     : $${result.open?.toFixed(2)}`,
-        `High     : $${result.high?.toFixed(2)}`,
-        `Low      : $${result.low?.toFixed(2)}`,
-        `Close    : $${result.close?.toFixed(2)}`,
-        `Volume   : ${result.volume}`,
-        `EMA50    : ${result.ema50?.toFixed(2)}`,
-        `EMA200   : ${result.ema200?.toFixed(2)}`,
-        `RSI      : ${result.rsi?.toFixed(2)}`,
+        `Sinyal   : ${result.signal ?? '-'}`,
+        `Waktu    : ${result.time ?? '-'}`,
+        `Open     : $${result.open !== undefined ? result.open.toFixed(2) : '-'}`,
+        `High     : $${result.high !== undefined ? result.high.toFixed(2) : '-'}`,
+        `Low      : $${result.low !== undefined ? result.low.toFixed(2) : '-'}`,
+        `Close    : $${result.close !== undefined ? result.close.toFixed(2) : '-'}`,
+        `Volume   : ${result.volume ?? '-'}`,
+        `EMA50    : ${result.ema50 !== undefined ? result.ema50.toFixed(2) : '-'}`,
+        `EMA200   : ${result.ema200 !== undefined ? result.ema200.toFixed(2) : '-'}`,
+        `RSI      : ${result.rsi !== undefined ? result.rsi.toFixed(2) : '-'}`,
         '=========================='
     ].join('\n');
 }
@@ -111,21 +111,20 @@ async function showLastCandle() {
 }
 
 function scheduleRunBot() {
-const now = dayjs();
-const minute = now.minute();
-const second = now.second();
-const nextRunMinute = minute < 30 ? 30 : 60;
-const waitMs = ((nextRunMinute - minute - 1) * 60 + (60 - second)) * 1000;
+    const now = dayjs();
+    const minute = now.minute();
+    const second = now.second();
+    const nextRunMinute = minute < 30 ? 30 : 60;
+    const waitMs = ((nextRunMinute - minute - 1) * 60 + (60 - second)) * 1000;
 
-setTimeout(() => {  
-    console.log('\n⏰ Menjalankan bot trading...');  
-    runBot();  
-    setInterval(() => {  
+    setTimeout(() => {  
         console.log('\n⏰ Menjalankan bot trading...');  
         runBot();  
-    }, 30 * 60 * 1000);  
-}, waitMs);
-
+        setInterval(() => {  
+            console.log('\n⏰ Menjalankan bot trading...');  
+            runBot();  
+        }, 30 * 60 * 1000);  
+    }, waitMs);
 } 
 
 function formatTradeMsg(trade: Trade): string {
@@ -146,12 +145,12 @@ function formatTradeMsg(trade: Trade): string {
             '=== CLOSE POSISI ===',
             `Tipe     : ${trade.type}`,
             `Entry    : $${trade.entryPrice.toFixed(2)}`,
-            `Exit     : $${trade.closePrice?.toFixed(2)}`,
+            `Exit     : $${trade.closePrice !== undefined ? trade.closePrice.toFixed(2) : '-'}`,
             `Size     : ${trade.size.toFixed(4)}`,
-            `PnL      : $${trade.pnl?.toFixed(2)}`,
-            `Result   : ${trade.result}`,
+            `PnL      : $${trade.pnl !== undefined ? trade.pnl.toFixed(2) : '-'}`,
+            `Result   : ${trade.result ?? '-'}`,
             `Balance  : $${trade.balance.toFixed(2)}`,
-            `Waktu    : ${trade.closeTime}`,
+            `Waktu    : ${trade.closeTime ?? '-'}`,
             '===================='
         ].join('\n');
     }
@@ -167,11 +166,10 @@ async function main() {
         } catch (err) {
             console.error('Gagal kirim Telegram:', err);
         }
-    });
+    }, true); // <--- hanya proses candle terbaru
 }
 
+runBot();
+// Jalankan hanya jika memang ingin simulasi berjalan paralel dengan bot sinyal
 scheduleRunBot();
 main();
-
-//setInterval(() => {
-//    process.stdout.write('\r🕒 ' + dayjs().format('HH:mm:ss'));}, 1000);
